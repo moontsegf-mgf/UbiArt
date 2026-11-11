@@ -9,7 +9,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Librerías oficiales de Firebase -->
+    <!-- Plugin Geocoder de Leaflet Control Geocoder -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+    <!-- Librerías oficiales de Firebase (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
@@ -18,99 +22,153 @@
         #map { flex-grow: 1; width: 100%; z-index: 1; }
         .controls { padding: 12px; background: #2c3e50; color: white; text-align: center; font-size: 14px; z-index: 10; }
         
-        /* Formulario flotante para crear el punto */
-        #formulario-punto { 
+        /* Modal / Formulario flotante */
+        .modal-flotante { 
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: white; color: #333; padding: 20px; border-radius: 8px; 
-            box-shadow: 0px 4px 15px rgba(0,0,0,0.3); z-index: 2000; width: 280px;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.3); z-index: 2000; width: 300px;
+            max-height: 85vh; overflow-y: auto;
         }
-        #formulario-punto h3 { margin-top: 0; font-size: 16px; color: #2c3e50; }
+        .modal-flotante h3 { margin-top: 0; font-size: 16px; color: #2c3e50; text-align: center; }
         .form-group { margin-bottom: 12px; text-align: left; }
         .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        .btn-submit { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 14px; }
+        .btn-submit { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 14px; margin-top: 6px; }
         .btn-cancel { background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 5px; font-size: 12px; }
         
-        /* Estilos dentro de la burbuja del mapa */
-        .popup-container { max-width: 180px; font-size: 13px; }
+        /* Estilos dentro de la burbuja emergente (Popup) */
+        .popup-container { width: 235px; max-height: 340px; overflow-y: auto; font-size: 13px; padding-right: 4px; }
+        .popup-estado-container { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; background: #f1f2f6; padding: 6px 8px; border-radius: 4px; font-size: 12px; }
+        .popup-historial { display: flex; flex-direction: column; gap: 8px; }
+        .popup-item { background: #f8f9fa; border: 1px solid #e9ecef; padding: 8px; border-radius: 6px; }
         .popup-img { width: 100%; height: auto; border-radius: 5px; margin-top: 6px; display: block; }
-        .popup-date { color: #7f8c8d; font-size: 11px; margin-bottom: 4px; }
-        .popup-desc { font-style: italic; color: #34495e; margin-top: 4px; word-break: break-word; }
+        .popup-visto { font-weight: bold; color: #e67e22; font-size: 12px; }
+        .btn-responder { background: #3498db; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 12px; margin-top: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <b>📌 Instrucciones:</b> Toca cualquier lugar del mapa para marcar un nuevo punto.
-        <p id="status" style="font-size: 11px; margin: 4px 0 0 0; color: #bdc3c7;">Conectando...</p>
+        <b>📌</b> Marca al mapa un punt i puja una foto. Actualitza l'estat del punt.
+        <p id="status" style="font-size: 11px; margin: 4px 0 0 0; color: #bdc3c7;">Conectando con Firebase...</p>
     </div>
 
     <div id="map"></div>
 
-    <!-- Formulario flotante -->
-    <div id="formulario-punto">
-        <h3>Añadir Nuevo Rincón</h3>
+    <!-- Formulario flotante para crear nuevo punto -->
+    <div id="formulario-punto" class="modal-flotante">
+        <h3>Afegir nou punt</h3>
         <div class="form-group">
-            <label>1. Tipo de Marcador</label>
+            <label>1. Categoría</label>
             <select id="form-tipo">
-                <option value="blue">🔵 Azul (General)</option>
-                <option value="red">🔴 Rojo (Favorito)</option>
-                <option value="green">🟢 Verde (Naturaleza)</option>
-                <option value="orange">🟠 Naranja (Restaurantes / Fiesta)</option>
+                <option value="black">🍼</option>
+                <option value="red">🦜</option>
+                <option value="green">🟢</option>
             </select>
         </div>
         <div class="form-group">
-            <label>2. Descripción de la foto</label>
-            <textarea id="form-desc" rows="2" placeholder="¿Qué pasó aquí?..."></textarea>
+            <label>2. Estat inicial</label>
+            <select id="form-estado">
+                <option value="actiu">🟢 Actiu</option>
+                <option value="inactiu">🔴 Inactiu</option>
+            </select>
         </div>
         <div class="form-group">
-            <label>3. Seleccionar Foto</label>
+            <label>3. Última vegada vist</label>
+            <input type="date" id="form-visto">
+        </div>
+        <div class="form-group">
+            <label>4. Seleccionar Foto</label>
             <input type="file" accept="image/*" id="form-foto">
         </div>
-        <button class="btn-submit" onclick="enviarPuntoAFirebase()">Guardar y Compartir</button>
+        <button class="btn-submit" onclick="enviarPuntoAFirebase()">Guardar i Compartir</button>
         <button class="btn-cancel" onclick="cerrarFormulario()">Cancelar</button>
     </div>
 
-    <script>
-        // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE (Rellena con tus datos reales)
-	  const firebaseConfig = {
-      	   apiKey: "AIzaSyCOmfNrSQy130-qLwTPzDY35AU3fDyuHPI",
-  	   authDomain: "ubiart-2f890.firebaseapp.com",
-  	   databaseURL: "https://ubiart-2f890-default-rtdb.europe-west1.firebasedatabase.app",
-  	   projectId: "ubiart-2f890",
-  	   storageBucket: "ubiart-2f890.firebasestorage.app",
-   	   messagingSenderId: "1042731218066",
-   	   appId: "1:1042731218066:web:36f2ed693ddeaae33ea24b"
-	  }; 
+    <!-- Formulario flotante para añadir una actualización/foto a un punto existente -->
+    <div id="formulario-actualizacion" class="modal-flotante">
+        <h3>Afegir Nova Foto / Visita</h3>
+        <div class="form-group">
+            <label>1. Data vist</label>
+            <input type="date" id="form-visto-update">
+        </div>
+        <div class="form-group">
+            <label>2. Seleccionar Nova Foto</label>
+            <input type="file" accept="image/*" id="form-foto-update">
+        </div>
+        <button class="btn-submit" onclick="enviarActualizacionAFirebase()">Afegir a l'Historial</button>
+        <button class="btn-cancel" onclick="cerrarFormularioActualizacion()">Cancelar</button>
+    </div>
 
+    <script>
+        // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyCOmfNrSQy130-qLwTPzDY35AU3fDyuHPI",
+            authDomain: "ubiart-2f890.firebaseapp.com",
+            databaseURL: "https://ubiart-2f890-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "ubiart-2f890",
+            storageBucket: "ubiart-2f890.firebasestorage.app",
+            messagingSenderId: "1042731218066",
+            appId: "1:1042731218066:web:36f2ed693ddeaae33ea24b"
+        };
         
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const database = firebase.database();
 
-        // Control de clave de acceso en el dispositivo
-        let miClaveSecreta = localStorage.getItem('clave_mapa');
-        if (!miClaveSecreta) {
-            miClaveSecreta = prompt("Introduce la clave del mapa compartido:");
-            if (miClaveSecreta) localStorage.setItem('clave_mapa', miClaveSecreta);
-        }
+        // Inicializar Mapa Leaflet centrado en Cataluña
+        let map = L.map('map').setView([41.8205, 1.8382], 8); 
+        
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
+            maxZoom: 19
+        }).addTo(map);
 
-        // Inicializar Mapa centrado por defecto en España
-	L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-   	  maxZoom: 17,
-    	  attribution: 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap'
-	}).addTo(map);
-
-
+        // Añadir buscador de direcciones
+        L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: "Buscar dirección o ciudad..."
+        })
+        .on('markgeocode', function(e) {
+            const bbox = e.geocode.bbox;
+            const poly = L.polygon([
+                bbox.getSouthEast(),
+                bbox.getNorthEast(),
+                bbox.getNorthWest(),
+                bbox.getSouthWest()
+            ]);
+            map.fitBounds(poly.getBounds());
+        })
+        .addTo(map);
 
         let coordenadasSeleccionadas = null;
+        let puntoIdActualizacion = null;
+        const marcadoresMapa = {};
 
-        // Generador de iconos de colores estables usando imágenes externas seguras
-        function obtenerIconoColor(color) {
-            let colorUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png";
-            if (color === "red") colorUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png";
-            if (color === "green") colorUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png";
-            if (color === "orange") colorUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png";
+        // Generador de iconos basado en la categoría seleccionada y si está Activo/Inactivo
+        function obtenerIconoSegunEstado(tipo, estado) {
+            let colorBase = tipo || 'blue';
+            let markerFileName = `marker-icon-2x-${colorBase}.png`;
+
+            // Si está inactivo, podemos usar un marcador gris o el gris/negro predeterminado
+            if (estado === 'inactiu') {
+                markerFileName = 'marker-icon-2x-grey.png'; // Alternativa o marcador especial
+            }
+
+            // Validar colores disponibles en el repositorio de iconos de Leaflet
+            const coloresValidos = ['blue', 'red', 'green', 'orange', 'yellow', 'violet', 'grey', 'black'];
+            if (!coloresValidos.includes(colorBase)) {
+                colorBase = 'blue';
+            }
+
+            let colorUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${colorBase}.png`;
             
+            // Si está inactivo, le ponemos icono gris para distinguirlo claramente
+            if (estado === 'inactiu') {
+                colorUrl = "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png";
+            }
+
             return new L.Icon({
                 iconUrl: colorUrl,
                 shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -121,7 +179,7 @@
             });
         }
 
-        // ESCUCHAR CLIC EN EL MAPA
+        // Clic en mapa para crear punto nuevo
         map.on('click', function(e) {
             coordenadasSeleccionadas = e.latlng;
             document.getElementById('formulario-punto').style.display = 'block';
@@ -129,73 +187,183 @@
 
         function cerrarFormulario() {
             document.getElementById('formulario-punto').style.display = 'none';
-            document.getElementById('form-desc').value = '';
+            document.getElementById('form-visto').value = '';
             document.getElementById('form-foto').value = '';
             coordenadasSeleccionadas = null;
         }
 
-        // Enviar todos los datos recolectados hacia Firebase
+        function abrirModalActualizar(puntoId) {
+            puntoIdActualizacion = puntoId;
+            document.getElementById('formulario-actualizacion').style.display = 'block';
+        }
+
+        function cerrarFormularioActualizacion() {
+            document.getElementById('formulario-actualizacion').style.display = 'none';
+            document.getElementById('form-visto-update').value = '';
+            document.getElementById('form-foto-update').value = '';
+            puntoIdActualizacion = null;
+        }
+
+        // Función para cambiar el estado (Activo / Inactivo) directamente desde la burbuja
+        window.cambiarEstadoPunto = function(puntoId, nuevoEstado) {
+            database.ref('puntos compartidos/' + puntoId).update({
+                estado: nuevoEstado
+            }).then(() => {
+                document.getElementById('status').innerText = `Punto cambiado a: ${nuevoEstado}`;
+            }).catch((err) => {
+                console.error("Error al actualizar estado:", err);
+                alert("No se pudo cambiar el estado.");
+            });
+        };
+
+        // Enviar nuevo punto a Firebase
         function enviarPuntoAFirebase() {
             const tipo = document.getElementById('form-tipo').value;
-            const descripcion = document.getElementById('form-desc').value;
+            const estado = document.getElementById('form-estado').value;
+            const ultimaVezVisto = document.getElementById('form-visto').value;
             const fotoInput = document.getElementById('form-foto').files[0];
 
-            if (!fotoInput) {
-                alert("Por favor, selecciona una foto para este punto.");
-                return;
-            }
+            if (!coordenadasSeleccionadas) return;
 
             document.getElementById('status').innerText = "Subiendo punto...";
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64Image = e.target.result;
+            const guardarDatos = (base64Image) => {
+                const nuevoPuntoRef = database.ref('puntos compartidos').push();
+                const primeraEntrada = {
+                    ultimaVezVisto: ultimaVezVisto,
+                    foto: base64Image || ''
+                };
 
-                database.ref('puntos compartidos').push({
+                nuevoPuntoRef.set({
                     lat: coordenadasSeleccionadas.lat,
                     lng: coordenadasSeleccionadas.lng,
                     tipo: tipo,
-                    descripcion: descripcion,
-                    foto: base64Image,
-                    fecha: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }),
-                    clave: miClaveSecreta 
+                    estado: estado,
+                    historial: [primeraEntrada]
                 }).then(() => {
-                    document.getElementById('status').innerText = "¡Punto añadido con éxito!";
+                    document.getElementById('status').innerText = "¡Punto añadido y compartido!";
                     cerrarFormulario();
-                }).catch(() => {
-                    alert("Error de permisos. Verifica la contraseña secreta.");
-                    localStorage.removeItem('clave_mapa');
+                }).catch((error) => {
+                    console.error("Error al guardar:", error);
+                    alert("Error al guardar en Firebase.");
                 });
             };
-            reader.readAsDataURL(fotoInput);
+
+            if (fotoInput) {
+                const reader = new FileReader();
+                reader.onload = function(e) { guardarDatos(e.target.result); };
+                reader.readAsDataURL(fotoInput);
+            } else {
+                guardarDatos('');
+            }
         }
 
-        // Función para pintar los pines según su color y rellenar la burbuja
-        function crearMarcador(punto) {
-            const iconoColor = obtenerIconoColor(punto.tipo || 'blue');
+        // Enviar actualización / seguimiento a un punto existente
+        function enviarActualizacionAFirebase() {
+            if (!puntoIdActualizacion) return;
+
+            const ultimaVezVisto = document.getElementById('form-visto-update').value;
+            const fotoInput = document.getElementById('form-foto-update').files[0];
+
+            document.getElementById('status').innerText = "Añadiendo foto al punto...";
+
+            const guardarSubEntrada = (base64Image) => {
+                const refPunto = database.ref('puntos compartidos/' + puntoIdActualizacion);
+                
+                refPunto.once('value').then((snapshot) => {
+                    const datos = snapshot.val();
+                    let historial = datos.historial || [];
+
+                    historial.push({
+                        ultimaVezVisto: ultimaVezVisto,
+                        foto: base64Image || ''
+                    });
+
+                    return refPunto.update({ historial: historial });
+                }).then(() => {
+                    document.getElementById('status').innerText = "¡Foto añadida correctamente!";
+                    cerrarFormularioActualizacion();
+                }).catch((err) => {
+                    console.error("Error actualizando punto:", err);
+                    alert("Error al actualizar el punto.");
+                });
+            };
+
+            if (fotoInput) {
+                const reader = new FileReader();
+                reader.onload = function(e) { guardarSubEntrada(e.target.result); };
+                reader.readAsDataURL(fotoInput);
+            } else {
+                guardarSubEntrada('');
+            }
+        }
+
+        // Crear o actualizar marcador en el mapa
+        function renderizarPunto(key, punto) {
+            const estadoActual = punto.estado || 'actiu';
+            const iconoColor = obtenerIconoSegunEstado(punto.tipo, estadoActual);
             
-            const popupContenido = `
-                <div class="popup-container">
-                    <div class="popup-date">📅 ${punto.fecha}</div>
-                    <div class="popup-desc">${punto.descripcion || 'Sin descripción.'}</div>
-                    <img src="${punto.foto}" class="popup-img" />
+            let historial = punto.historial || [{
+                ultimaVezVisto: punto.ultimaVezVisto || '',
+                foto: punto.foto || ''
+            }];
+
+            let historialHTML = '<div class="popup-historial">';
+            historial.forEach((item, index) => {
+                let imgHTML = item.foto ? `<img src="${item.foto}" class="popup-img" />` : '';
+                let fechaHTML = item.ultimaVezVisto ? `<div class="popup-visto">👁️ Vist: ${item.ultimaVezVisto}</div>` : '';
+                
+                historialHTML += `
+                    <div class="popup-item">
+                        <div style="font-size: 10px; color: #7f8c8d; margin-bottom: 2px;">Entrada #${index + 1}</div>
+                        ${fechaHTML}
+                        ${imgHTML}
+                    </div>
+                `;
+            });
+            historialHTML += '</div>';
+
+            const esActivo = estadoActual === 'actiu';
+            const selectEstadoHTML = `
+                <div class="popup-estado-container">
+                    <span>Estat:</span>
+                    <select onchange="cambiarEstadoPunto('${key}', this.value)" style="padding: 2px 4px; font-size: 11px; border-radius: 4px;">
+                        <option value="actiu" ${esActivo ? 'selected' : ''}>🟢 Actiu</option>
+                        <option value="inactiu" ${!esActivo ? 'selected' : ''}>🔴 Inactiu</option>
+                    </select>
                 </div>
             `;
-            
-            L.marker([punto.lat, punto.lng], { icon: iconoColor }).addTo(map).bindPopup(popupContenido);
+
+            const popupContenido = `
+                <div class="popup-container">
+                    ${selectEstadoHTML}
+                    ${historialHTML}
+                    <button class="btn-responder" onclick="abrirModalActualizar('${key}')">➕ Afegir foto / data</button>
+                </div>
+            `;
+
+            if (marcadoresMapa[key]) {
+                marcadoresMapa[key].setIcon(iconoColor);
+                marcadoresMapa[key].setPopupContent(popupContenido);
+            } else {
+                const marker = L.marker([punto.lat, punto.lng], { icon: iconoColor })
+                    .addTo(map)
+                    .bindPopup(popupContenido);
+                marcadoresMapa[key] = marker;
+            }
         }
 
-        // Sincronización en tiempo real con Firebase
-        database.ref('puntos compartidos')
-            .orderByChild('clave')
-            .equalTo(miClaveSecreta)
-            .on('child_added', (snapshot) => {
-                const nuevoPunto = snapshot.val();
-                crearMarcador(nuevoPunto);
-                document.getElementById('status').innerText = "Mapa sincronizado y al día.";
-            }, () => {
-                document.getElementById('status').innerText = "Error: Acceso denegado o clave incorrecta.";
-            });
+        // Listeners en tiempo real de Firebase
+        const refPuntos = database.ref('puntos compartidos');
+        refPuntos.on('child_added', (snapshot) => {
+            renderizarPunto(snapshot.key, snapshot.val());
+            document.getElementById('status').innerText = "Mapa sincronizado en tiempo real.";
+        });
+
+        refPuntos.on('child_changed', (snapshot) => {
+            renderizarPunto(snapshot.key, snapshot.val());
+            document.getElementById('status').innerText = "Punto actualizado en tiempo real.";
+        });
     </script>
 </body>
 </html>
