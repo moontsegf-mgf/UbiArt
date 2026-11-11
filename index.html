@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuestro Mapa Compartido</title>
+    
+    <!-- Librería de mapas gratis Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
+    
+    <!-- Librerías oficiales de Firebase (Versión compatible) -->
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+    
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        #map { flex-grow: 1; width: 100%; }
+        .controls { padding: 15px; background: #2c3e50; color: white; text-align: center; }
+        button { background: #3498db; color: white; border: none; padding: 10px 15px; font-size: 16px; border-radius: 5px; cursor: pointer; }
+        input[type="file"] { display: none; }
+        .custom-file-upload { background: #2ecc71; padding: 10px 15px; border-radius: 5px; display: inline-block; cursor: pointer; }
+        .popup-img { width: 150px; height: auto; border-radius: 5px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h2>👥 Nuestro Mapa Colaborativo</h2>
+        <button onclick="capturarUbicacion()">1. Fijar Ubicación</button>
+        <label class="custom-file-upload" style="margin-left: 10px;">
+            <input type="file" accept="image/*" id="input-foto" onchange="procesarFoto(event)">
+            2. Subir Foto Compartida
+        </label>
+        <p id="status" style="font-size: 12px; margin: 5px 0 0 0; color: #bdc3c7;">Verificando acceso...</p>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // 1. REEMPLAZA ESTE BLOQUE CON TUS CLAVES REALES DE FIREBASE
+ 	const firebaseConfig = {
+ 	   apiKey: "AIzaSyCOmfNrSQy130-qLwTPzDY35AU3fDyuHPI",
+ 	   authDomain: "ubiart-2f890.firebaseapp.com",
+	    databaseURL: "https://ubiart-2f890-default-rtdb.europe-west1.firebasedatabase.app",
+ 	   projectId: "ubiart-2f890",
+	    storageBucket: "ubiart-2f890.firebasestorage.app",
+ 	   messagingSenderId: "1042731218066",
+	    appId: "1:1042731218066:web:36f2ed693ddeaae33ea24b"
+ 	 };
+        
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // 2. CONFIGURACIÓN DE LA CLAVE DE ACCESO
+        let miClaveSecreta = localStorage.getItem('clave_mapa');
+        if (!miClaveSecreta) {
+            miClaveSecreta = prompt("Introduce la clave secreta para acceder al mapa compartido con tus amigos:");
+            if (miClaveSecreta) {
+                localStorage.setItem('clave_mapa', miClaveSecreta);
+            }
+        }
+
+        // Inicializar Mapa centrado por defecto
+        let map = L.map('map').setView([40.4167, -3.7037], 6); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let coordsActuales = null;
+
+        // Función para activar el GPS del teléfono
+        function capturarUbicacion() {
+            document.getElementById('status').innerText = "Obteniendo GPS...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    coordsActuales = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    map.setView([coordsActuales.lat, coordsActuales.lng], 16);
+                    document.getElementById('status').innerText = "📍 Ubicación lista. Sube tu foto.";
+                }, () => {
+                    document.getElementById('status').innerText = "Error: Activa el GPS de tu móvil.";
+                });
+            }
+        }
+
+        // Función para procesar y codificar la imagen
+        function procesarFoto(event) {
+            if (!coordsActuales) { alert("Primero fija tu ubicación con el botón azul."); return; }
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Image = e.target.result;
+                    
+                    // Enviamos el punto a Firebase incluyendo la clave para pasar las reglas de seguridad
+                    database.ref('puntos compartidos').push({
+                        lat: coordsActuales.lat,
+                        lng: coordsActuales.lng,
+                        foto: base64Image,
+                        fecha: new Date().toLocaleDateString(),
+                        clave: miClaveSecreta 
+                    }).then(() => {
+                        document.getElementById('status').innerText = "¡Punto compartido con éxito!";
+                        coordsActuales = null;
+                    }).catch((error) => {
+                        alert("Error al subir: Clave incorrecta o denegada.");
+                        localStorage.removeItem('clave_mapa'); // Borrar clave guardada para reintentar
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Función para renderizar los marcadores con su foto
+        function crearMarcador(punto) {
+            const popupContenido = `<div><b>Subido el:</b> ${punto.fecha}<br><img src="${punto.foto}" class="popup-img" /></div>`;
+            L.marker([punto.lat, punto.lng]).addTo(map).bindPopup(popupContenido);
+        }
+
+        // Escucha en tiempo real para sincronizar las fotos de todos tus amigos
+        database.ref('puntos compartidos')
+            .orderByChild('clave')
+            .equalTo(miClaveSecreta)
+            .on('child_added', (snapshot) => {
+                const nuevoPunto = snapshot.val();
+                crearMarcador(nuevoPunto);
+                document.getElementById('status').innerText = "Mapa sincronizado.";
+            }, (error) => {
+                document.getElementById('status').innerText = "Acceso denegado. Recarga e introduce la clave correcta.";
+            });
+    </script>
+</body>
+</html>
