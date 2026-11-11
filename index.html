@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nuestro Mapa Personalizado</title>
+    <title>UbiArt</title>
     
-    <!-- Librería de mapas Leaflet (Corregida) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com"></script>
+    <!-- Librería de mapas Leaflet (URLs 100% Completas) -->
+    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Librerías oficiales de Firebase (Corregidas) -->
+    <!-- Librerías oficiales de Firebase (URLs 100% Completas) -->
     <script src="https://gstatic.com"></script>
     <script src="https://gstatic.com"></script>
     
@@ -72,8 +72,8 @@
     </div>
 
     <script>
-        // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE (Rellena con tus datos)
-        const firebaseConfig = {
+        // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE (Rellena con tus datos reales)
+  	const firebaseConfig = {
     		apiKey: "AIzaSyCOmfNrSQy130-qLwTPzDY35AU3fDyuHPI",
     		authDomain: "ubiart-2f890.firebaseapp.com",
     		databaseURL: "https://ubiart-2f890-default-rtdb.europe-west1.firebasedatabase.app",
@@ -83,7 +83,6 @@
     		appId: "1:1042731218066:web:36f2ed693ddeaae33ea24b"
   	};
 
-        
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
@@ -94,7 +93,7 @@
             if (miClaveSecreta) localStorage.setItem('clave_mapa', miClaveSecreta);
         }
 
-        // Inicializar Mapa centrado por defecto en coordenadas globales
+        // Inicializar Mapa centrado por defecto en España
         let map = L.map('map').setView([40.4167, -3.7037], 6); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
@@ -102,18 +101,18 @@
 
         let coordenadasSeleccionadas = null;
 
-        // Generador de iconos de colores reales usando marcadores web estables
+        // Generador de iconos de colores estables usando imágenes externas seguras
         function obtenerIconoColor(color) {
-            let urlColor = "blue";
-            if (color === "red") urlColor = "red";
-            if (color === "green") urlColor = "green";
-            if (color === "orange") urlColor = "orange";
+            let colorUrl = "https://githubusercontent.com";
+            if (color === "red") colorUrl = "https://githubusercontent.com";
+            if (color === "green") colorUrl = "https://githubusercontent.com";
+            if (color === "orange") colorUrl = "https://githubusercontent.com";
             
             return new L.Icon({
-                iconUrl: `https://githubusercontent.com{urlColor}.png`,
+                iconUrl: colorUrl,
                 shadowUrl: 'https://cloudflare.com',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
+                iconSize:,
+                iconAnchor:,
                 popupAnchor: [1, -34],
                 shadowSize: [41, 41]
             });
